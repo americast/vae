@@ -29,6 +29,7 @@ def imsave(X, path):
                   256: (16, 16),
                   512: (16, 32),
                   1024: (32, 32)}
+    X = X[:256]
     N = X.shape[0]
     size = grid_sizes.get(N, (1, N))
 

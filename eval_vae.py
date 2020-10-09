@@ -50,7 +50,7 @@ args.kernel_sizes = [int(item) for item in args.kernel_sizes.split(',')]
 args.strides = [int(item) for item in args.strides.split(',')]
 args.batch_norm = bool(args.batch_norm)
 
-DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
@@ -60,36 +60,37 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
           valid_loader=None, n_gen=0):
 
     device = next(vae.parameters()).device
-    for epoch in range(n_epochs):
-        print('Epoch {}/{}'.format(epoch + 1, n_epochs))
+    for epoch in range(1):
+    #     print('Epoch {}/{}'.format(epoch + 1, n_epochs))
 
-        # training phase
-        vae.train()  # training mode
-        for i, X in enumerate(train_loader):
-            X = X.to(device)
+    #     # training phase
+    #     vae.train()  # training mode
+    #     for i, X in enumerate(train_loader):
+    #         X = X.to(device)
 
-            # forward pass
-            Xrec, z_mean, z_logvar = vae(X)
+    #         # forward pass
+    #         Xrec, z_mean, z_logvar = vae(X)
 
-            # loss, backward pass and optimization step
-            loss, reconst_loss, kl_loss = vae_loss(Xrec, X, z_mean, z_logvar,
-                                                   kl_weight=kl_weight)
-            optimizer.zero_grad()  # clear previous gradients
-            loss.backward()        # compute new gradients
-            optimizer.step()       # optimize the parameters
+    #         # loss, backward pass and optimization step
+    #         loss, reconst_loss, kl_loss = vae_loss(Xrec, X, z_mean, z_logvar,
+    #                                                kl_weight=kl_weight)
+    #         optimizer.zero_grad()  # clear previous gradients
+    #         loss.backward()        # compute new gradients
+    #         optimizer.step()       # optimize the parameters
 
-            # display the mini-batch loss
-            sys.stdout.write(
-              '\r'
-              + '........{} mini-batch loss: {:.3f} |'
-                .format(i + 1, loss.item())
-              + ' reconst loss: {:.3f} |'
-                .format(reconst_loss.item())
-              + ' kl loss: {:.3f}'
-                .format(kl_loss.item()))
-            sys.stdout.flush()
+    #         # display the mini-batch loss
+    #         sys.stdout.write(
+    #           '\r'
+    #           + '........{} mini-batch loss: {:.3f} |'
+    #             .format(i + 1, loss.item())
+    #           + ' reconst loss: {:.3f} |'
+    #             .format(reconst_loss.item())
+    #           + ' kl loss: {:.3f}'
+    #             .format(kl_loss.item()))
+    #         sys.stdout.flush()
 
-        torch.save(vae.state_dict(), './models/vae_new.pth')
+    #     torch.save(vae.state_dict(), './models/vae.pth')
+        vae.load_state_dict(torch.load('./models/vae_celeba.pth'))
 
         # evaluation phase
         print()
@@ -97,21 +98,21 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
             vae.eval()  # inference mode
 
             # compute training loss
-            train_loss = 0.
-            for i, X in enumerate(train_loader):
-                X = X.to(device)
+            # train_loss = 0.
+            # for i, X in enumerate(train_loader):
+            #     X = X.to(device)
 
-                Xrec, z_mean, z_logvar = vae(X)
-                train_loss += vae_loss(Xrec, X, z_mean, z_logvar,
-                                       kl_weight=kl_weight)[0]
+            #     Xrec, z_mean, z_logvar = vae(X)
+            #     train_loss += vae_loss(Xrec, X, z_mean, z_logvar,
+            #                            kl_weight=kl_weight)[0]
 
-                # save original and reconstructed images
-                if i == 0:
-                    imsave(X, './imgs/train_orig.png')
-                    imsave(Xrec, './imgs/train_rec.png')
+            #     # save original and reconstructed images
+            #     if i == 0:
+            #         imsave(X, './imgs/train_orig.png')
+            #         imsave(Xrec, './imgs/train_rec.png')
 
-            train_loss /= i + 1
-            print('....train loss = {:.3f}'.format(train_loss.item()))
+            # train_loss /= i + 1
+            # print('....train loss = {:.3f}'.format(train_loss.item()))
 
             if valid_loader is None:
                 print()
@@ -135,9 +136,9 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
 
             # generate some new examples
             if n_gen > 0:
-                z = torch.randn((n_gen, vae.module.latent_dim)).to(device)
-                Xnew = vae.module.decoder(z)
-                imsave(Xnew, './imgs/gen_'+str(epoch)+'.png')
+                z = torch.randn((n_gen, vae.latent_dim)).to(device)
+                Xnew = vae.decoder(z)
+                imsave(Xnew, './imgs/gen.png')
 
 
 SetRange = transforms.Lambda(lambda X: 2*X - 1.)
@@ -168,8 +169,8 @@ valid_loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size,
                                            shuffle=False, num_workers=4,
                                            sampler=valid_sampler)
 
-print('{} samples for training'
-      .format(int((1 - args.valid_split) * dataset_size)))
+# print('{} samples for training'
+      # .format(int((1 - args.valid_split) * dataset_size)))
 print('{} samples for validation'
       .format(int(args.valid_split * dataset_size)))
 
@@ -185,7 +186,6 @@ vae = VAE(img_channels,
           out_activation=nn.Tanh,
           batch_norm=args.batch_norm).to(DEVICE)
 print(vae)
-vae = nn.DataParallel(vae)
 
 optimizer = optim.Adam(vae.parameters(),
                        lr=args.lr,
