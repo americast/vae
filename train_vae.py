@@ -12,7 +12,7 @@ from utils import imsave
 
 parser = argparse.ArgumentParser(description='VAE Example')
 parser.add_argument('--data-path', type=str,
-                    default='../glow-gatech-7/img_align_celeba/',
+                    default='../glow-gatech-7/img_align_celeba_no_male_smile/',
                     help='path for the images dir')
 parser.add_argument('--img-crop', type=int, default=148,
                     help='size for center cropping (default: 148)')
@@ -89,7 +89,7 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
                 .format(kl_loss.item()))
             sys.stdout.flush()
 
-        torch.save(vae.state_dict(), './models/vae_new.pth')
+        torch.save(vae.state_dict(), './models/vae_no_smile.pth')
 
         # evaluation phase
         print()

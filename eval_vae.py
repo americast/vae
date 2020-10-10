@@ -8,6 +8,7 @@ import argparse
 from vae import VAE, vae_loss
 from imgdataset import ImgDataset
 from utils import imsave
+import pudb
 
 
 parser = argparse.ArgumentParser(description='VAE Example')
@@ -56,7 +57,7 @@ torch.manual_seed(args.seed)
 np.random.seed(args.seed)
 
 
-def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
+def eval(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
           valid_loader=None, n_gen=0):
 
     device = next(vae.parameters()).device
@@ -90,7 +91,7 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
     #         sys.stdout.flush()
 
     #     torch.save(vae.state_dict(), './models/vae.pth')
-        vae.load_state_dict(torch.load('./models/vae_celeba.pth'))
+        vae.load_state_dict(torch.load('./models/vae_no_smile.pth'))
 
         # evaluation phase
         print()
@@ -114,31 +115,86 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
             # train_loss /= i + 1
             # print('....train loss = {:.3f}'.format(train_loss.item()))
 
-            if valid_loader is None:
-                print()
-            else:  # compute validation loss
-                valid_loss = 0.
-                for i, X in enumerate(valid_loader):
-                    X = X.to(device)
+            # if valid_loader is None:
+            #     print()
+            # else:  # compute validation loss
+            #     valid_loss = 0.
+            #     for i, X in enumerate(valid_loader):
+            #         X = X.to(device)
 
-                    Xrec, z_mean, z_logvar = vae(X)
-                    valid_loss += vae_loss(Xrec, X, z_mean, z_logvar,
-                                           kl_weight=kl_weight)[0]
+            #         Xrec, z_mean, z_logvar = vae(X)
+            #         valid_loss += vae_loss(Xrec, X, z_mean, z_logvar,
+            #                                kl_weight=kl_weight)[0]
 
-                    # save original and reconstructed images
-                    if i == 0:
-                        imsave(X, './imgs/valid_orig.png')
-                        imsave(Xrec, './imgs/valid_rec.png')
+            #         # save original and reconstructed images
+            #         if i == 0:
+            #             imsave(X, './imgs/valid_orig.png')
+            #             imsave(Xrec, './imgs/valid_rec.png')
 
-                valid_loss /= i + 1
-                print('....valid loss = {:.3f}'.format(valid_loss.item()))
-                print()
+            #     valid_loss /= i + 1
+            #     print('....valid loss = {:.3f}'.format(valid_loss.item()))
+            #     print()
 
             # generate some new examples
             if n_gen > 0:
-                z = torch.randn((n_gen, vae.latent_dim)).to(device)
-                Xnew = vae.decoder(z)
-                imsave(Xnew, './imgs/gen.png')
+                vals_no_male_smile = []
+                vals_smile_no_male = []
+                vals_male_smile    = []
+                vals_male_no_smile = []
+                
+                for i, X in enumerate(dataset_no_male_smile):
+                  X = X.to(device)
+                  X = X.unsqueeze(0)
+                  X, _ = vae.module.encoder(X)
+                  vals_no_male_smile.append(X.squeeze(0))
+                  if i == 2:
+                    break
+                for i, X in enumerate(dataset_smile_no_male):
+                  X = X.to(device)
+                  X = X.unsqueeze(0)
+                  X, _ = vae.module.encoder(X)
+                  vals_smile_no_male.append(X.squeeze(0))
+                  if i == 2:
+                    break
+                for i, X in enumerate(dataset_male_smile):
+                  X = X.to(device)
+                  X = X.unsqueeze(0)
+                  X, _ = vae.module.encoder(X)
+                  vals_male_smile.append(X.squeeze(0))
+                  if i == 2:
+                    break
+                for i, X in enumerate(dataset_male_no_smile):
+                  X = X.to(device)
+                  X = X.unsqueeze(0)
+                  X, _ = vae.module.encoder(X)
+                  vals_male_no_smile.append(X.squeeze(0))
+                  if i == 2:
+                    break
+
+                vals_no_male_smile = sum(vals_no_male_smile)/3
+                vals_smile_no_male = sum(vals_smile_no_male)/3
+                vals_male_smile    = sum(vals_male_smile)   /3
+                vals_male_no_smile = sum(vals_male_no_smile)/3
+
+                gen_vals_male_smile = vals_smile_no_male - vals_no_male_smile + vals_male_no_smile
+
+                # pu.db
+
+                # z = torch.randn((n_gen, vae.module.latent_dim)).to(device)
+                Xnew = vae.module.decoder(vals_no_male_smile.unsqueeze(0))
+                imsave(Xnew, './imgs/female_neutral.png')
+
+                Xnew = vae.module.decoder(vals_smile_no_male.unsqueeze(0))
+                imsave(Xnew, './imgs/female_smile.png')
+
+                Xnew = vae.module.decoder(vals_male_smile.unsqueeze(0))
+                imsave(Xnew, './imgs/male_smile.png')
+
+                Xnew = vae.module.decoder(vals_male_no_smile.unsqueeze(0))
+                imsave(Xnew, './imgs/male_neutral.png')
+
+                Xnew = vae.module.decoder(gen_vals_male_smile.unsqueeze(0))
+                imsave(Xnew, './imgs/gen_male_smile.png')
 
 
 SetRange = transforms.Lambda(lambda X: 2*X - 1.)
@@ -149,32 +205,35 @@ transform = transforms.Compose([transforms.RandomHorizontalFlip(),
                                                    args.img_resize)),
                                 transforms.ToTensor(),
                                 SetRange])
-dataset = ImgDataset(args.data_path, transform=transform)
+dataset_no_male_smile = ImgDataset('../glow-gatech-7/img_align_celeba_no_male_smile/', transform=transform)
+dataset_smile_no_male = ImgDataset('../glow-gatech-7/img_align_celeba_smile_no_male/', transform=transform)
+dataset_male_smile = ImgDataset('../glow-gatech-7/img_align_celeba_male_smile/', transform=transform)
+dataset_male_no_smile = ImgDataset('../glow-gatech-7/img_align_celeba_male_no_smile/', transform=transform)
 
 # create data indices for training and validation splits
-dataset_size = len(dataset)  # number of samples in training + validation sets
-indices = list(range(dataset_size))
-split = int(np.floor(args.valid_split * dataset_size))  # samples in valid. set
-np.random.shuffle(indices)
-train_indices, valid_indices = indices[split:], indices[:split]
+# dataset_size = len(dataset)  # number of samples in training + validation sets
+# indices = list(range(dataset_size))
+# split = int(np.floor(args.valid_split * dataset_size))  # samples in valid. set
+# np.random.shuffle(indices)
+# train_indices, valid_indices = indices[split:], indices[:split]
 
-train_sampler = torch.utils.data.sampler.SubsetRandomSampler(train_indices)
-valid_sampler = torch.utils.data.sampler.SubsetRandomSampler(valid_indices)
+# train_sampler = torch.utils.data.sampler.SubsetRandomSampler(train_indices)
+# valid_sampler = torch.utils.data.sampler.SubsetRandomSampler(valid_indices)
 
-train_loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size,
-                                           shuffle=False, num_workers=4,
-                                           sampler=train_sampler)
+# train_loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size,
+                                           # shuffle=False, num_workers=4,
+                                           # sampler=train_sampler)
 
-valid_loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size,
-                                           shuffle=False, num_workers=4,
-                                           sampler=valid_sampler)
+# valid_loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size,
+#                                            shuffle=False, num_workers=4,
+#                                            sampler=valid_sampler)
 
-# print('{} samples for training'
-      # .format(int((1 - args.valid_split) * dataset_size)))
-print('{} samples for validation'
-      .format(int(args.valid_split * dataset_size)))
+# # print('{} samples for training'
+#       # .format(int((1 - args.valid_split) * dataset_size)))
+# print('{} samples for validation'
+#       .format(int(args.valid_split * dataset_size)))
 
-img_channels = dataset[0].shape[0]
+img_channels = dataset_no_male_smile[0].shape[0]
 
 vae = VAE(img_channels,
           args.img_resize,
@@ -186,10 +245,12 @@ vae = VAE(img_channels,
           out_activation=nn.Tanh,
           batch_norm=args.batch_norm).to(DEVICE)
 print(vae)
+vae = nn.DataParallel(vae)
 
-optimizer = optim.Adam(vae.parameters(),
-                       lr=args.lr,
-                       weight_decay=0.)
 
-train(vae, optimizer, train_loader, args.epochs, kl_weight=args.kl_weight,
-      valid_loader=valid_loader, n_gen=args.batch_size)
+# optimizer = optim.Adam(vae.parameters(),
+                       # lr=args.lr,
+                       # weight_decay=0.)
+
+eval(vae, None, None, args.epochs, kl_weight=args.kl_weight,
+      valid_loader=None, n_gen=args.batch_size)
