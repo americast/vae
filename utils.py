@@ -1,6 +1,7 @@
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+import cv2
 plt.switch_backend('agg')
 
 
@@ -39,3 +40,8 @@ def imsave(X, path):
     plt.imshow(img)
     plt.savefig(path)
     plt.close()
+
+def imsave_custom(X, path):
+    X = X.squeeze(0) 
+    img = (X.to('cpu').numpy().transpose(1, 2, 0) + 1.)/2.
+    plt.imsave(path, img)

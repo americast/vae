@@ -8,8 +8,10 @@ import argparse
 from vae import VAE, vae_loss
 from imgdataset import ImgDataset
 from utils import imsave
+from utils import imsave_custom
 import pudb
-
+from tqdm import tqdm
+import os
 
 parser = argparse.ArgumentParser(description='VAE Example')
 parser.add_argument('--data-path', type=str,
@@ -91,7 +93,7 @@ def eval(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
     #         sys.stdout.flush()
 
     #     torch.save(vae.state_dict(), './models/vae.pth')
-        vae.load_state_dict(torch.load('./models/vae_no_smile.pth'))
+        vae.load_state_dict(torch.load('./models/vae_no_smile_latent_64.pth'))
 
         # evaluation phase
         print()
@@ -109,8 +111,8 @@ def eval(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
 
             #     # save original and reconstructed images
             #     if i == 0:
-            #         imsave(X, './imgs/train_orig.png')
-            #         imsave(Xrec, './imgs/train_rec.png')
+            #         imsave(X, './imgs/train_orig.jpg')
+            #         imsave(Xrec, './imgs/train_rec.jpg')
 
             # train_loss /= i + 1
             # print('....train loss = {:.3f}'.format(train_loss.item()))
@@ -128,8 +130,8 @@ def eval(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
 
             #         # save original and reconstructed images
             #         if i == 0:
-            #             imsave(X, './imgs/valid_orig.png')
-            #             imsave(Xrec, './imgs/valid_rec.png')
+            #             imsave(X, './imgs/valid_orig.jpg')
+            #             imsave(Xrec, './imgs/valid_rec.jpg')
 
             #     valid_loss /= i + 1
             #     print('....valid loss = {:.3f}'.format(valid_loss.item()))
@@ -137,64 +139,85 @@ def eval(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
 
             # generate some new examples
             if n_gen > 0:
-                vals_no_male_smile = []
-                vals_smile_no_male = []
-                vals_male_smile    = []
-                vals_male_no_smile = []
-                
-                for i, X in enumerate(dataset_no_male_smile):
-                  X = X.to(device)
-                  X = X.unsqueeze(0)
-                  X, _ = vae.module.encoder(X)
-                  vals_no_male_smile.append(X.squeeze(0))
-                  if i == 2:
-                    break
-                for i, X in enumerate(dataset_smile_no_male):
-                  X = X.to(device)
-                  X = X.unsqueeze(0)
-                  X, _ = vae.module.encoder(X)
-                  vals_smile_no_male.append(X.squeeze(0))
-                  if i == 2:
-                    break
-                for i, X in enumerate(dataset_male_smile):
-                  X = X.to(device)
-                  X = X.unsqueeze(0)
-                  X, _ = vae.module.encoder(X)
-                  vals_male_smile.append(X.squeeze(0))
-                  if i == 2:
-                    break
-                for i, X in enumerate(dataset_male_no_smile):
-                  X = X.to(device)
-                  X = X.unsqueeze(0)
-                  X, _ = vae.module.encoder(X)
-                  vals_male_no_smile.append(X.squeeze(0))
-                  if i == 2:
-                    break
+              for num in tqdm(range(1000)):
+                  vals_no_male_smile = []
+                  vals_smile_no_male = []
+                  vals_male_smile    = []
+                  vals_male_no_smile = []
+                  vals_only_male     = []
+                  
+                  for i in range(num, num + 3):
+                    X = dataset_no_male_smile[i]
+                    X = X.to(device)
+                    X = X.unsqueeze(0)
+                    X, _ = vae.module.encoder(X)
+                    vals_no_male_smile.append(X.squeeze(0))
+                    # if i == 2:
+                    #   break
+                  for i in range(num, num + 3):
+                    X = dataset_smile_no_male[i]
+                    X = X.to(device)
+                    X = X.unsqueeze(0)
+                    X, _ = vae.module.encoder(X)
+                    vals_smile_no_male.append(X.squeeze(0))
+                    # if i == 2:
+                    #   break
+                  for i in range(num, num + 3):
+                    X = dataset_male_smile[i]
+                    X = X.to(device)
+                    X = X.unsqueeze(0)
+                    X, _ = vae.module.encoder(X)
+                    vals_male_smile.append(X.squeeze(0))
+                    # if i == 2:
+                    #   break
+                  for i in range(num, num + 3):
+                    X = dataset_male_no_smile[i]
+                    X = X.to(device)
+                    X = X.unsqueeze(0)
+                    X, _ = vae.module.encoder(X)
+                    vals_male_no_smile.append(X.squeeze(0))
+                    # if i == 2:
+                    #   break
 
-                vals_no_male_smile = sum(vals_no_male_smile)/3
-                vals_smile_no_male = sum(vals_smile_no_male)/3
-                vals_male_smile    = sum(vals_male_smile)   /3
-                vals_male_no_smile = sum(vals_male_no_smile)/3
+                  for i in range(num, num + 3):
+                    X = dataset_only_male[i]
+                    X = X.to(device)
+                    X = X.unsqueeze(0)
+                    X, _ = vae.module.encoder(X)
+                    vals_only_male.append(X.squeeze(0))
+                    # if i == 2:
+                    #   break
 
-                gen_vals_male_smile = vals_smile_no_male - vals_no_male_smile + vals_male_no_smile
+                  vals_no_male_smile = sum(vals_no_male_smile)/3
+                  vals_smile_no_male = sum(vals_smile_no_male)/3
+                  vals_male_smile    = sum(vals_male_smile)   /3
+                  vals_male_no_smile = sum(vals_male_no_smile)/3
+                  vals_only_male     = sum(vals_only_male)/3
 
-                # pu.db
+                  gen_vals_male_smile           = vals_smile_no_male - vals_no_male_smile + vals_male_no_smile
+                  gen_vals_male_smile_more_male = 0.8 * (vals_smile_no_male - vals_no_male_smile + vals_male_no_smile) + 0.2 * vals_only_male
 
-                # z = torch.randn((n_gen, vae.module.latent_dim)).to(device)
-                Xnew = vae.module.decoder(vals_no_male_smile.unsqueeze(0))
-                imsave(Xnew, './imgs/female_neutral.png')
+                  # pu.db
+                  
+                  Xnew = vae.module.decoder(vals_no_male_smile.unsqueeze(0))
+                  os.system("mkdir -p ./imgs/female_neutral/")
+                  imsave_custom(Xnew, './imgs/female_neutral/'+str(num)+'.jpg')
 
-                Xnew = vae.module.decoder(vals_smile_no_male.unsqueeze(0))
-                imsave(Xnew, './imgs/female_smile.png')
+                  Xnew = vae.module.decoder(vals_smile_no_male.unsqueeze(0))
+                  os.system("mkdir -p ./imgs/female_smile/")
+                  imsave_custom(Xnew, './imgs/female_smile/'+str(num)+'.jpg')
 
-                Xnew = vae.module.decoder(vals_male_smile.unsqueeze(0))
-                imsave(Xnew, './imgs/male_smile.png')
+                  Xnew = vae.module.decoder(vals_male_no_smile.unsqueeze(0))
+                  os.system("mkdir -p ./imgs/male_neutral/")
+                  imsave_custom(Xnew, './imgs/male_neutral/'+str(num)+'.jpg')
 
-                Xnew = vae.module.decoder(vals_male_no_smile.unsqueeze(0))
-                imsave(Xnew, './imgs/male_neutral.png')
+                  Xnew = vae.module.decoder(gen_vals_male_smile.unsqueeze(0))
+                  os.system("mkdir -p ./imgs/gen_male_smile/")
+                  imsave_custom(Xnew, './imgs/gen_male_smile/'+str(num)+'.jpg')
 
-                Xnew = vae.module.decoder(gen_vals_male_smile.unsqueeze(0))
-                imsave(Xnew, './imgs/gen_male_smile.png')
+                  Xnew = vae.module.decoder(gen_vals_male_smile.unsqueeze(0))
+                  os.system("mkdir -p ./imgs/gen_male_smile_more_male/")
+                  imsave_custom(Xnew, './imgs/gen_male_smile_more_male/'+str(num)+'.jpg')
 
 
 SetRange = transforms.Lambda(lambda X: 2*X - 1.)
@@ -209,6 +232,7 @@ dataset_no_male_smile = ImgDataset('../glow-gatech-7/img_align_celeba_no_male_sm
 dataset_smile_no_male = ImgDataset('../glow-gatech-7/img_align_celeba_smile_no_male/', transform=transform)
 dataset_male_smile = ImgDataset('../glow-gatech-7/img_align_celeba_male_smile/', transform=transform)
 dataset_male_no_smile = ImgDataset('../glow-gatech-7/img_align_celeba_male_no_smile/', transform=transform)
+dataset_only_male = ImgDataset('../glow-gatech-7/img_align_celeba_only_male/', transform=transform)
 
 # create data indices for training and validation splits
 # dataset_size = len(dataset)  # number of samples in training + validation sets

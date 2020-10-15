@@ -15,7 +15,7 @@ parser.add_argument('--data-path', type=str,
                     default='../glow-gatech-7/img_align_celeba_no_male_smile/',
                     help='path for the images dir')
 parser.add_argument('--img-crop', type=int, default=148,
-                    help='size for center cropping (default: 148)')
+                    help='size for center cropping (default: 64)')
 parser.add_argument('--img-resize', type=int, default=64,
                     help='size for resizing (default: 64)')
 parser.add_argument('--batch-size', type=int, default=32,
@@ -89,7 +89,7 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
                 .format(kl_loss.item()))
             sys.stdout.flush()
 
-        torch.save(vae.state_dict(), './models/vae_no_smile.pth')
+        torch.save(vae.state_dict(), './models/vae_no_smile_latent.pth')
 
         # evaluation phase
         print()
@@ -107,8 +107,8 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
 
                 # save original and reconstructed images
                 if i == 0:
-                    imsave(X, './imgs/train_orig.png')
-                    imsave(Xrec, './imgs/train_rec.png')
+                    imsave(X, './imgs/train_orig.jpg')
+                    imsave(Xrec, './imgs/train_rec.jpg')
 
             train_loss /= i + 1
             print('....train loss = {:.3f}'.format(train_loss.item()))
@@ -126,8 +126,8 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
 
                     # save original and reconstructed images
                     if i == 0:
-                        imsave(X, './imgs/valid_orig.png')
-                        imsave(Xrec, './imgs/valid_rec.png')
+                        imsave(X, './imgs/valid_orig.jpg')
+                        imsave(Xrec, './imgs/valid_rec.jpg')
 
                 valid_loss /= i + 1
                 print('....valid loss = {:.3f}'.format(valid_loss.item()))
@@ -137,7 +137,7 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
             if n_gen > 0:
                 z = torch.randn((n_gen, vae.module.latent_dim)).to(device)
                 Xnew = vae.module.decoder(z)
-                imsave(Xnew, './imgs/gen_'+str(epoch)+'.png')
+                imsave(Xnew, './imgs/gen_'+str(epoch)+'.jpg')
 
 
 SetRange = transforms.Lambda(lambda X: 2*X - 1.)
