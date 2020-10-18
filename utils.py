@@ -2,6 +2,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
+import pudb
 plt.switch_backend('agg')
 
 
@@ -31,7 +32,10 @@ def imsave(X, path):
                   512: (16, 32),
                   1024: (32, 32)}
     X = X[:256]
-    N = X.shape[0]
+    try:
+      N = X.shape[0]
+    except:
+      pu.db
     size = grid_sizes.get(N, (1, N))
 
     imgs = (X.to('cpu').numpy().transpose(0, 2, 3, 1) + 1.)/2.

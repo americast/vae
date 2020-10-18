@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
+import pudb
 
 
 class Encoder(nn.Module):
@@ -71,7 +72,9 @@ class Encoder(nn.Module):
 
         # define mean and variance layers
         self.mean_block = nn.Linear(self.flat_dim, self.latent_dim)
+        self.act_mean = nn.Softmax(dim = -1)
         self.logvar_block = nn.Linear(self.flat_dim, self.latent_dim)
+        self.act_logvar = nn.LogSoftmax(dim = -1)
 
         self.param_init()
 
@@ -89,9 +92,10 @@ class Encoder(nn.Module):
     def forward(self, X):
         '''Forward pass.'''
         h = self.conv_block(X)
+        self.h = h
         h = h.reshape(-1, self.flat_dim)
-        z_mean = self.mean_block(h)
-        z_logvar = self.logvar_block(h)
+        z_mean = self.act_mean(self.mean_block(h))
+        z_logvar = self.act_logvar(self.logvar_block(h))
 
         return z_mean, z_logvar
 
@@ -307,9 +311,11 @@ def vae_loss(Xrec, X, z_mean, z_logvar, kl_weight=1e-3):
     each term in the loss.
     '''
     reconst_ls = F.mse_loss(Xrec, X)
-    kl_ls = torch.mean(-.5*torch.sum(1 + z_logvar - z_mean**2
-                                     - torch.exp(z_logvar), dim=1), dim=0)
+    kl_ls = torch.mean(-.5*torch.sum(1 + z_logvar - z_mean**2 - torch.exp(z_logvar), dim=1), dim=0)
 
     loss = reconst_ls + kl_weight * kl_ls
+
+    if torch.isinf(loss) or torch.isinf(reconst_ls) or torch.isinf(kl_ls):
+        pu.db
 
     return loss, reconst_ls, kl_ls

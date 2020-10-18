@@ -5,9 +5,11 @@ from torchvision import transforms
 import numpy as np
 import sys
 import argparse
-from vae import VAE, vae_loss
+from vae_conv import VAE
 from imgdataset import ImgDataset
 from utils import imsave
+import pudb
+from torch.nn import functional as F
 
 
 parser = argparse.ArgumentParser(description='VAE Example')
@@ -51,9 +53,24 @@ args.strides = [int(item) for item in args.strides.split(',')]
 args.batch_norm = bool(args.batch_norm)
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+# DEVICE = "cpu"
 
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
+
+def loss_function(recon_x, x, mu, logvar):
+    # pu.db
+    a = recon_x.view(-1, 32 * 32 * 3)
+    b = x.view(-1, 32 * 32 * 3)
+    MSE = F.mse_loss(a, b, reduction="mean")
+
+    # see Appendix B from VAE paper:
+    # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
+    # https://arxiv.org/abs/1312.6114
+    # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
+    KLD = (-0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp()))/a.shape[0]
+
+    return MSE + KLD, MSE, KLD
 
 
 def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
@@ -72,8 +89,9 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
             Xrec, z_mean, z_logvar = vae(X)
 
             # loss, backward pass and optimization step
-            loss, reconst_loss, kl_loss = vae_loss(Xrec, X, z_mean, z_logvar,
-                                                   kl_weight=kl_weight)
+            loss, reconst_loss, kl_loss = loss_function(Xrec, X, z_mean, z_logvar)
+            if not loss == loss:
+                  pu.db
             optimizer.zero_grad()  # clear previous gradients
             loss.backward()        # compute new gradients
             optimizer.step()       # optimize the parameters
@@ -89,7 +107,7 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
                 .format(kl_loss.item()))
             sys.stdout.flush()
 
-        torch.save(vae.state_dict(), './models/vae_no_smile_latent.pth')
+        torch.save(vae.state_dict(), './models/vae_no_smile_latent_'+str(vae.module.latent_dim)+'.pth')
 
         # evaluation phase
         print()
@@ -102,8 +120,7 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
                 X = X.to(device)
 
                 Xrec, z_mean, z_logvar = vae(X)
-                train_loss += vae_loss(Xrec, X, z_mean, z_logvar,
-                                       kl_weight=kl_weight)[0]
+                train_loss += loss_function(Xrec, X, z_mean, z_logvar)[0]
 
                 # save original and reconstructed images
                 if i == 0:
@@ -121,8 +138,7 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
                     X = X.to(device)
 
                     Xrec, z_mean, z_logvar = vae(X)
-                    valid_loss += vae_loss(Xrec, X, z_mean, z_logvar,
-                                           kl_weight=kl_weight)[0]
+                    valid_loss += loss_function(Xrec, X, z_mean, z_logvar)[0]
 
                     # save original and reconstructed images
                     if i == 0:
@@ -130,13 +146,15 @@ def train(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
                         imsave(Xrec, './imgs/valid_rec.jpg')
 
                 valid_loss /= i + 1
+                if not valid_loss == valid_loss:
+                  pu.db
                 print('....valid loss = {:.3f}'.format(valid_loss.item()))
                 print()
 
             # generate some new examples
             if n_gen > 0:
                 z = torch.randn((n_gen, vae.module.latent_dim)).to(device)
-                Xnew = vae.module.decoder(z)
+                Xnew = vae.module.decode(z)[0]
                 imsave(Xnew, './imgs/gen_'+str(epoch)+'.jpg')
 
 
@@ -175,15 +193,8 @@ print('{} samples for validation'
 
 img_channels = dataset[0].shape[0]
 
-vae = VAE(img_channels,
-          args.img_resize,
-          args.latent_dim,
-          args.filters,
-          args.kernel_sizes,
-          args.strides,
-          activation=nn.LeakyReLU,
-          out_activation=nn.Tanh,
-          batch_norm=args.batch_norm).to(DEVICE)
+vae = VAE(args.latent_dim,
+          args.latent_dim).to(DEVICE)
 print(vae)
 vae = nn.DataParallel(vae)
 
