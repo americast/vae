@@ -93,7 +93,7 @@ def eval(vae, optimizer, train_loader, n_epochs, kl_weight=1e-3,
     #         sys.stdout.flush()
 
     #     torch.save(vae.state_dict(), './models/vae.pth')
-        vae.load_state_dict(torch.load('./models/vae_no_smile_latent_64.pth'))
+        vae.load_state_dict(torch.load('./models/vae_no_smile_latent_'+str(args.latent_dim)+'.pth'))
 
         # evaluation phase
         print()
